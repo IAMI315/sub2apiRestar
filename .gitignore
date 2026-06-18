@@ -139,6 +139,9 @@ frontend/coverage/
 aicodex
 output/
 
+# 个人仓库不运行原项目的 GitHub Actions，避免 fork 后 CI/安全扫描反复通知。
+.github/workflows/
+
 # 本地调试辅助文件，仅用于没有真实后端时联调前端，不上传到仓库。
 LOCAL_DEV.md
 tools/local-dev-mock-server.mjs
