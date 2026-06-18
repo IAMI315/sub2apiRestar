@@ -30,3 +30,15 @@ describe('AppSidebar header styles', () => {
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
   })
 })
+
+describe('AppSidebar self navigation', () => {
+  it('includes chat and canvas after API keys', () => {
+    const apiKeysIndex = componentSource.indexOf("{ path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon }")
+    const chatIndex = componentSource.indexOf("{ path: '/chat', label: t('nav.chat'), icon: ChatIcon }")
+    const canvasIndex = componentSource.indexOf("{ path: '/canvas', label: t('nav.canvas'), icon: CanvasIcon }")
+
+    expect(apiKeysIndex).toBeGreaterThan(-1)
+    expect(chatIndex).toBeGreaterThan(apiKeysIndex)
+    expect(canvasIndex).toBeGreaterThan(chatIndex)
+  })
+})

@@ -138,3 +138,7 @@ docs/*
 frontend/coverage/
 aicodex
 output/
+
+# 本地调试辅助文件，仅用于没有真实后端时联调前端，不上传到仓库。
+LOCAL_DEV.md
+tools/local-dev-mock-server.mjs
