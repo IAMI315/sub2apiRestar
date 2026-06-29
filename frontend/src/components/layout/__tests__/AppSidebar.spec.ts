@@ -32,13 +32,14 @@ describe('AppSidebar header styles', () => {
 })
 
 describe('AppSidebar self navigation', () => {
-  it('includes chat and canvas after API keys', () => {
+  it('loads chat and canvas navigation from the playground feature', () => {
     const apiKeysIndex = componentSource.indexOf("{ path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon }")
-    const chatIndex = componentSource.indexOf("{ path: '/chat', label: t('nav.chat'), icon: ChatIcon }")
-    const canvasIndex = componentSource.indexOf("{ path: '/canvas', label: t('nav.canvas'), icon: CanvasIcon }")
+    const playgroundIndex = componentSource.indexOf('...buildPlaygroundNavItems()')
 
     expect(apiKeysIndex).toBeGreaterThan(-1)
-    expect(chatIndex).toBeGreaterThan(apiKeysIndex)
-    expect(canvasIndex).toBeGreaterThan(chatIndex)
+    expect(playgroundIndex).toBeGreaterThan(apiKeysIndex)
+    expect(componentSource).toContain("from '@/features/playground/navigation'")
+    expect(componentSource).not.toContain("{ path: '/chat', label: t('nav.chat'), icon: ChatIcon }")
+    expect(componentSource).not.toContain("{ path: '/canvas', label: t('nav.canvas'), icon: CanvasIcon }")
   })
 })

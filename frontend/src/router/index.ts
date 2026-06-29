@@ -11,6 +11,7 @@ import { useAdminComplianceStore } from '@/stores/adminCompliance'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
+import { playgroundRoutes } from '@/features/playground/routes'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
 
@@ -205,30 +206,7 @@ const routes: RouteRecordRaw[] = [
       descriptionKey: 'keys.description'
     }
   },
-  {
-    path: '/chat',
-    name: 'Chat',
-    component: () => import('@/views/user/ChatView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Chat',
-      titleKey: 'chat.title',
-      descriptionKey: 'chat.description'
-    }
-  },
-  {
-    path: '/canvas',
-    name: 'Canvas',
-    component: () => import('@/views/user/CanvasView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Canvas',
-      titleKey: 'canvas.title',
-      descriptionKey: 'canvas.description'
-    }
-  },
+  ...playgroundRoutes,
   {
     path: '/usage',
     name: 'Usage',
