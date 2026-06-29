@@ -188,7 +188,14 @@ type SystemSettings struct {
 	RewriteMessageCacheControl             bool   `json:"rewrite_message_cache_control"`
 	AntigravityUserAgentVersion            string `json:"antigravity_user_agent_version"`
 	OpenAICodexUserAgent                   string `json:"openai_codex_user_agent"`
-	OpenAIAllowClaudeCodeCodexPlugin       bool   `json:"openai_allow_claude_code_codex_plugin"`
+
+	// codex_cli_only 加固
+	MinCodexVersion                      string `json:"min_codex_version"`
+	MaxCodexVersion                      string `json:"max_codex_version"`
+	CodexCLIOnlyBlacklist                string `json:"codex_cli_only_blacklist"`
+	CodexCLIOnlyWhitelist                string `json:"codex_cli_only_whitelist"`
+	CodexCLIOnlyAllowAppServerClients    bool   `json:"codex_cli_only_allow_app_server_clients"`
+	CodexCLIOnlyEngineFingerprintSignals string `json:"codex_cli_only_engine_fingerprint_signals"`
 
 	// Web Search Emulation
 	WebSearchEmulationEnabled bool `json:"web_search_emulation_enabled"`
@@ -246,6 +253,10 @@ type SystemSettings struct {
 
 	// 风控中心功能开关
 	RiskControlEnabled bool `json:"risk_control_enabled"`
+
+	// cyber 会话屏蔽开关 + TTL
+	CyberSessionBlockEnabled    bool `json:"cyber_session_block_enabled"`
+	CyberSessionBlockTTLSeconds int  `json:"cyber_session_block_ttl_seconds"`
 
 	// Affiliate (邀请返利) feature switch
 	AffiliateEnabled bool `json:"affiliate_enabled"`
