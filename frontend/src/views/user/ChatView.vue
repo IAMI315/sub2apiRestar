@@ -14,11 +14,11 @@
               :placeholder="t('chat.selectKey')"
               @update:model-value="handleKeyChange"
             />
-            <input
+            <Select
               v-model="model"
-              type="text"
-              class="input"
-              :placeholder="t('chat.modelPlaceholder')"
+              :options="modelOptions"
+              :placeholder="t('chat.selectModel')"
+              :disabled="loadingModels || modelOptions.length === 0"
             />
           </div>
         </div>
@@ -64,9 +64,10 @@
           {{ errorMessage }}
         </div>
 
-        <form class="mt-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm dark:border-dark-800 dark:bg-dark-900" @submit.prevent="sendMessage">
+        <form data-test="chat-form" class="mt-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm dark:border-dark-800 dark:bg-dark-900" @submit.prevent="sendMessage">
           <textarea
             v-model="draft"
+            data-test="chat-input"
             rows="3"
             class="w-full resize-none rounded-xl border-0 bg-transparent px-2 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:ring-0 dark:text-white dark:placeholder:text-dark-400"
             :placeholder="t('chat.inputPlaceholder')"
@@ -92,15 +93,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import keysAPI from '@/api/keys'
+import userChannelsAPI, { type UserAvailableChannel } from '@/api/channels'
 import playgroundAPI, { type PlaygroundChatMessage } from '@/api/playground'
+import { useAuthStore } from '@/stores/auth'
 import type { ApiKey } from '@/types'
+import { buildModelOptionsForKey } from '@/utils/playgroundModels'
 
 interface ChatMessage {
   id: string
@@ -109,16 +113,26 @@ interface ChatMessage {
 }
 
 const { t } = useI18n()
+const authStore = useAuthStore()
 
 const apiKeys = ref<ApiKey[]>([])
+const availableChannels = ref<UserAvailableChannel[]>([])
 const selectedKeyId = ref<number | null>(null)
-const model = ref('gpt-4o-mini')
+const model = ref('')
 const draft = ref('')
 const messages = ref<ChatMessage[]>([])
 const loadingKeys = ref(false)
+const loadingModels = ref(false)
 const sending = ref(false)
 const errorMessage = ref('')
+const storageReady = ref(false)
 let requestController: AbortController | null = null
+
+interface ChatSnapshot {
+  selectedKeyId?: number | null
+  model?: string
+  messages?: ChatMessage[]
+}
 
 const keyOptions = computed(() =>
   apiKeys.value.map((key) => ({
@@ -128,10 +142,14 @@ const keyOptions = computed(() =>
 )
 
 const selectedKey = computed(() => apiKeys.value.find((key) => key.id === selectedKeyId.value) || null)
-const canSend = computed(() => !!selectedKey.value && draft.value.trim().length > 0 && model.value.trim().length > 0 && !sending.value)
+const modelOptions = computed(() => buildModelOptionsForKey(selectedKey.value, availableChannels.value))
+const canSend = computed(() => !!selectedKey.value && draft.value.trim().length > 0 && model.value.trim().length > 0 && modelOptions.value.length > 0 && !sending.value)
+
+const storageKey = computed(() => `sub2api:playground:chat:user:${authStore.user?.id ?? 'anonymous'}`)
 
 function handleKeyChange(value: string | number | boolean | null) {
   selectedKeyId.value = typeof value === 'number' ? value : Number(value) || null
+  syncModelSelection()
 }
 
 function appendMessage(role: ChatMessage['role'], content: string) {
@@ -142,18 +160,82 @@ function appendMessage(role: ChatMessage['role'], content: string) {
   })
 }
 
-async function loadKeys() {
+function readSnapshot(): ChatSnapshot | null {
+  try {
+    const raw = window.localStorage.getItem(storageKey.value)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as ChatSnapshot
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function persistSnapshot() {
+  if (!storageReady.value) return
+  try {
+    window.localStorage.setItem(storageKey.value, JSON.stringify({
+      selectedKeyId: selectedKeyId.value,
+      model: model.value,
+      messages: messages.value
+    }))
+  } catch {
+    // localStorage can be unavailable in private browsing or quota-limited environments.
+  }
+}
+
+function restoreMessages(snapshot: ChatSnapshot | null) {
+  if (!Array.isArray(snapshot?.messages)) return
+  messages.value = snapshot.messages
+    .filter((message): message is ChatMessage =>
+      !!message
+      && typeof message.id === 'string'
+      && (message.role === 'user' || message.role === 'assistant')
+      && typeof message.content === 'string'
+    )
+}
+
+function restoreSelection(snapshot: ChatSnapshot | null, keys: ApiKey[]) {
+  const savedKeyID = typeof snapshot?.selectedKeyId === 'number' ? snapshot.selectedKeyId : null
+  const savedKey = savedKeyID != null ? keys.find((key) => key.id === savedKeyID) : null
+  const activeKey = keys.find((key) => key.status === 'active') || keys[0]
+  selectedKeyId.value = (savedKey || activeKey)?.id ?? null
+  model.value = typeof snapshot?.model === 'string' ? snapshot.model : ''
+  syncModelSelection()
+}
+
+function syncModelSelection() {
+  const options = modelOptions.value
+  if (options.length === 0) {
+    model.value = ''
+    return
+  }
+  if (!options.some((option) => option.value === model.value)) {
+    model.value = options[0].value
+  }
+}
+
+async function loadInitialData() {
   loadingKeys.value = true
+  loadingModels.value = true
   errorMessage.value = ''
   try {
-    const response = await keysAPI.list(1, 100, { sort_by: 'created_at', sort_order: 'desc' })
+    const [response, channels] = await Promise.all([
+      keysAPI.list(1, 100, { sort_by: 'created_at', sort_order: 'desc' }),
+      userChannelsAPI.getAvailable()
+    ])
     apiKeys.value = response.items
-    const activeKey = response.items.find((key) => key.status === 'active') || response.items[0]
-    selectedKeyId.value = activeKey?.id ?? null
+    availableChannels.value = channels
+    const snapshot = readSnapshot()
+    restoreMessages(snapshot)
+    restoreSelection(snapshot, response.items)
+    storageReady.value = true
+    persistSnapshot()
   } catch (error: any) {
     errorMessage.value = error?.message || t('chat.loadKeysFailed')
   } finally {
     loadingKeys.value = false
+    loadingModels.value = false
   }
 }
 
@@ -198,13 +280,16 @@ function stopRequest() {
 function clearMessages() {
   messages.value = []
   errorMessage.value = ''
+  persistSnapshot()
 }
 
 onMounted(() => {
-  void loadKeys()
+  void loadInitialData()
 })
 
 onUnmounted(() => {
   requestController?.abort()
 })
+
+watch([selectedKeyId, model, messages], persistSnapshot, { deep: true })
 </script>
