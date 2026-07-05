@@ -1,8 +1,9 @@
+import { playgroundLocales } from '@/features/playground'
 import { createI18n } from 'vue-i18n'
 
 type LocaleCode = 'en' | 'zh'
 
-type LocaleMessages = Record<string, any>
+type LocaleMessages = Record<string, unknown>
 
 const LOCALE_KEY = 'sub2api_locale'
 const DEFAULT_LOCALE: LocaleCode = 'en'
@@ -14,6 +15,26 @@ const localeLoaders: Record<LocaleCode, () => Promise<{ default: LocaleMessages 
 
 function isLocaleCode(value: string): value is LocaleCode {
   return value === 'en' || value === 'zh'
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Object.prototype.toString.call(value) === '[object Object]'
+}
+
+function mergeLocaleMessages(base: LocaleMessages, extension: LocaleMessages): LocaleMessages {
+  const merged: LocaleMessages = { ...base }
+
+  for (const [key, value] of Object.entries(extension)) {
+    const baseValue = merged[key]
+    if (isPlainObject(baseValue) && isPlainObject(value)) {
+      merged[key] = mergeLocaleMessages(baseValue, value)
+      continue
+    }
+
+    merged[key] = value
+  }
+
+  return merged
 }
 
 function getDefaultLocale(): LocaleCode {
@@ -49,7 +70,8 @@ export async function loadLocaleMessages(locale: LocaleCode): Promise<void> {
 
   const loader = localeLoaders[locale]
   const module = await loader()
-  i18n.global.setLocaleMessage(locale, module.default)
+  const featureMessages = playgroundLocales[locale]
+  i18n.global.setLocaleMessage(locale, mergeLocaleMessages(module.default, featureMessages))
   loadedLocales.add(locale)
 }
 

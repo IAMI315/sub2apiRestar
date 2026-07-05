@@ -103,7 +103,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import keysAPI from '@/api/keys'
-import playgroundAPI from '@/api/playground'
+import playgroundAPI from '@/features/playground/api'
 import type { ApiKey } from '@/types'
 
 interface GeneratedImage {
