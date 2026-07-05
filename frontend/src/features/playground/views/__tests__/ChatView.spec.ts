@@ -3,12 +3,12 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import type { ApiKey } from '@/types'
 import type { UserAvailableChannel } from '@/api/channels'
-import CanvasView from '../CanvasView.vue'
+import ChatView from '../ChatView.vue'
 
-const { listKeys, getAvailableChannels, createImageGeneration } = vi.hoisted(() => ({
+const { listKeys, getAvailableChannels, createChatCompletion } = vi.hoisted(() => ({
   listKeys: vi.fn(),
   getAvailableChannels: vi.fn(),
-  createImageGeneration: vi.fn()
+  createChatCompletion: vi.fn()
 }))
 
 vi.mock('@/api/keys', () => ({
@@ -26,9 +26,9 @@ vi.mock('@/api/channels', () => ({
   }
 }))
 
-vi.mock('@/api/playground', () => ({
+vi.mock('@/features/playground/api', () => ({
   default: {
-    createImageGeneration
+    createChatCompletion
   }
 }))
 
@@ -50,11 +50,11 @@ vi.mock('vue-i18n', async () => {
 
 function apiKey(overrides: Partial<ApiKey>): ApiKey {
   return {
-    id: 2,
+    id: 1,
     user_id: 42,
-    key: 'sk-image',
-    name: 'Image key',
-    group_id: 202,
+    key: 'sk-chat',
+    name: 'Chat key',
+    group_id: 101,
     status: 'active',
     ip_whitelist: [],
     ip_blacklist: [],
@@ -82,15 +82,15 @@ function apiKey(overrides: Partial<ApiKey>): ApiKey {
 
 const channels: UserAvailableChannel[] = [
   {
-    name: 'Image Channel',
+    name: 'OpenAI Channel',
     description: '',
     platforms: [
       {
         platform: 'openai',
         groups: [
           {
-            id: 202,
-            name: 'Image Group',
+            id: 101,
+            name: 'OpenAI Group',
             platform: 'openai',
             subscription_type: 'standard',
             rate_multiplier: 1,
@@ -102,8 +102,8 @@ const channels: UserAvailableChannel[] = [
           }
         ],
         supported_models: [
-          { name: 'gpt-image-1', platform: 'openai', pricing: null },
-          { name: 'gpt-4o-image', platform: 'openai', pricing: null }
+          { name: 'gpt-4o-mini', platform: 'openai', pricing: null },
+          { name: 'gpt-4o', platform: 'openai', pricing: null }
         ]
       }
     ]
@@ -127,7 +127,7 @@ const SelectStub = {
 }
 
 function mountView() {
-  return mount(CanvasView, {
+  return mount(ChatView, {
     global: {
       stubs: {
         AppLayout: { template: '<div><slot /></div>' },
@@ -140,16 +140,16 @@ function mountView() {
   })
 }
 
-describe('CanvasView', () => {
+describe('ChatView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.localStorage.clear()
     listKeys.mockResolvedValue({
-      items: [apiKey({ id: 2, key: 'sk-image', name: 'Image key', group_id: 202 })]
+      items: [apiKey({ id: 1, key: 'sk-chat', name: 'Chat key', group_id: 101 })]
     })
     getAvailableChannels.mockResolvedValue(channels)
-    createImageGeneration.mockResolvedValue({
-      data: [{ b64_json: 'abc123', revised_prompt: 'better prompt' }]
+    createChatCompletion.mockResolvedValue({
+      choices: [{ message: { content: 'assistant reply' } }]
     })
   })
 
@@ -159,53 +159,45 @@ describe('CanvasView', () => {
 
     expect(listKeys).toHaveBeenCalled()
     expect(getAvailableChannels).toHaveBeenCalled()
-    expect(wrapper.text()).toContain('gpt-image-1')
-    expect(wrapper.text()).toContain('gpt-4o-image')
+    expect(wrapper.text()).toContain('gpt-4o-mini')
+    expect(wrapper.text()).toContain('gpt-4o')
   })
 
-  it('restores user-scoped local canvas state', async () => {
-    window.localStorage.setItem('sub2api:playground:canvas:user:42', JSON.stringify({
-      selectedKeyId: 2,
-      model: 'gpt-image-1',
-      prompt: 'saved prompt',
-      size: '1536x1024',
-      count: 2,
-      images: [{ id: 'saved-image', src: 'data:image/png;base64,saved', revisedPrompt: 'saved revised' }]
+  it('restores user-scoped local chat state', async () => {
+    window.localStorage.setItem('sub2api:playground:chat:user:42', JSON.stringify({
+      selectedKeyId: 1,
+      model: 'gpt-4o',
+      messages: [{ id: 'saved-1', role: 'user', content: 'saved message' }]
     }))
 
     const wrapper = mountView()
     await flushPromises()
 
-    expect((wrapper.find('[data-test="canvas.selectModel"]').element as HTMLSelectElement).value).toBe('gpt-image-1')
-    expect((wrapper.find('[data-test="canvas-prompt"]').element as HTMLTextAreaElement).value).toBe('saved prompt')
-    expect(wrapper.text()).toContain('saved revised')
+    expect((wrapper.find('[data-test="chat.selectModel"]').element as HTMLSelectElement).value).toBe('gpt-4o')
+    expect(wrapper.text()).toContain('saved message')
   })
 
-  it('persists generated images locally after a successful request', async () => {
+  it('persists messages locally after sending', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.find('[data-test="canvas-prompt"]').setValue('draw a cat')
-    await wrapper.find('[data-test="canvas-generate"]').trigger('click')
+    await wrapper.find('[data-test="chat-input"]').setValue('hello')
+    await wrapper.find('[data-test="chat-form"]').trigger('submit')
     await flushPromises()
     await nextTick()
 
-    expect(createImageGeneration).toHaveBeenCalledWith(
-      'sk-image',
+    expect(createChatCompletion).toHaveBeenCalledWith(
+      'sk-chat',
       expect.objectContaining({
-        model: 'gpt-4o-image',
-        prompt: 'draw a cat',
-        size: '1024x1024',
-        n: 1
+        model: 'gpt-4o',
+        messages: [expect.objectContaining({ role: 'user', content: 'hello' })]
       }),
       expect.any(Object)
     )
-    const saved = JSON.parse(window.localStorage.getItem('sub2api:playground:canvas:user:42') || '{}')
-    expect(saved.images).toEqual([
-      expect.objectContaining({
-        src: 'data:image/png;base64,abc123',
-        revisedPrompt: 'better prompt'
-      })
+    const saved = JSON.parse(window.localStorage.getItem('sub2api:playground:chat:user:42') || '{}')
+    expect(saved.messages).toEqual([
+      expect.objectContaining({ role: 'user', content: 'hello' }),
+      expect.objectContaining({ role: 'assistant', content: 'assistant reply' })
     ])
   })
 })

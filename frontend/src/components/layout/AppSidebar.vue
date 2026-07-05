@@ -187,6 +187,7 @@ import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } 
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
+import { createPlaygroundNavItems } from '@/features/playground'
 
 interface NavItem {
   path: string
@@ -696,8 +697,13 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   }
   items.push(
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-    { path: '/chat', label: t('nav.chat'), icon: ChatIcon },
-    { path: '/canvas', label: t('nav.canvas'), icon: CanvasIcon },
+    ...createPlaygroundNavItems({
+      t,
+      icons: {
+        chat: ChatIcon,
+        canvas: CanvasIcon,
+      },
+    }),
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
     { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },

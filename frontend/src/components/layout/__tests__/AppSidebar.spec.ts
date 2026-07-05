@@ -32,13 +32,13 @@ describe('AppSidebar header styles', () => {
 })
 
 describe('AppSidebar self navigation', () => {
-  it('includes chat and canvas after API keys', () => {
+  it('inserts playground nav items after API keys', () => {
     const apiKeysIndex = componentSource.indexOf("{ path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon }")
-    const chatIndex = componentSource.indexOf("{ path: '/chat', label: t('nav.chat'), icon: ChatIcon }")
-    const canvasIndex = componentSource.indexOf("{ path: '/canvas', label: t('nav.canvas'), icon: CanvasIcon }")
+    const playgroundFactoryIndex = componentSource.indexOf('...createPlaygroundNavItems({')
+    const usageIndex = componentSource.indexOf("{ path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true }")
 
     expect(apiKeysIndex).toBeGreaterThan(-1)
-    expect(chatIndex).toBeGreaterThan(apiKeysIndex)
-    expect(canvasIndex).toBeGreaterThan(chatIndex)
+    expect(playgroundFactoryIndex).toBeGreaterThan(apiKeysIndex)
+    expect(usageIndex).toBeGreaterThan(playgroundFactoryIndex)
   })
 })
